@@ -1,3 +1,12 @@
+const int MODE_BACK_PIN = 6;
+const int MODE_FORWARD_PIN = 7;
+int LATCH_PIN = 11;          // (11) ST_CP [RCK] on 74HC595
+int CLOCK_PIN = 9;           // (9) SH_CP [SCK] on 74HC595
+int DATA_PIN = 12;           // (12) DS [S1] on 74HC595
+const int BLINKER_LEFT = 3;  // on 74HC595
+const int BLINKER_RIGHT = 4; // on 74HC595
+const unsigned long BLINK_INTERVAL = 500;
+
 enum BlinkerMode
 {
   OFF,
@@ -6,106 +15,83 @@ enum BlinkerMode
   HAZARD
 };
 
-BlinkerMode blinkerMode = OFF;
+bool parkingOn = true;
+bool dayOn = true;
+bool headOn = false;
+bool breakOn = false;
+bool reverseOn = false;
+BlinkerMode blinkerMode = HAZARD;
+bool blinkerOn = false;
+unsigned long blinkerPreviousMillis = 0;
 
-int tDelay = 500;
-int latchPin = 11; // (11) ST_CP [RCK] on 74HC595
-int clockPin = 9;  // (9) SH_CP [SCK] on 74HC595
-int dataPin = 12;  // (12) DS [S1] on 74HC595
-
+int currentMode = 0;
 byte leds = 0;
-
-const int BLINKER_LEFT_BACK = 2;
-const int BLINKER_LEFT_FRONT = 3;
-
-const int BLINKER_RIGHT_BACK = 4;
-const int BLINKER_RIGHT_FRONT = 5;
-
-BlinkerMode blinkerScript[] =
-{
-    OFF, OFF, OFF,
-    LEFT, LEFT, LEFT,
-    RIGHT, RIGHT, RIGHT,
-    HAZARD, HAZARD, HAZARD
-};
-int blinkerScriptIndex = 0;
-
-void updateBlinkerScriptIndex()
-{
-  blinkerScriptIndex++;
-  if (blinkerScriptIndex >= sizeof(blinkerScript))
-  {
-    blinkerScriptIndex = 0;
-  }
-}
 
 void updateShiftRegister()
 {
-  digitalWrite(latchPin, LOW);
-  shiftOut(dataPin, clockPin, LSBFIRST, leds);
-  digitalWrite(latchPin, HIGH);
+  digitalWrite(LATCH_PIN, LOW);
+  shiftOut(DATA_PIN, CLOCK_PIN, LSBFIRST, leds);
+  digitalWrite(LATCH_PIN, HIGH);
 }
 
-void blinkerOff()
-{
-  leds &= ~(1 << BLINKER_LEFT_BACK);
-  leds &= ~(1 << BLINKER_LEFT_FRONT);
-  leds &= ~(1 << BLINKER_RIGHT_BACK);
-  leds &= ~(1 << BLINKER_RIGHT_FRONT);
-}
+// void allBlinkersOff()
+// {
+//   leds &= ~(0 << BLINKER_LEFT);
+//   leds &= ~(0 << BLINKER_LEFT);
+// }
 
 void blinkerToggleLeft()
 {
-  leds ^= (1 << BLINKER_LEFT_BACK);
-  leds ^= (1 << BLINKER_LEFT_FRONT);
-
-  leds &= ~(0 << BLINKER_RIGHT_BACK);
-  leds &= ~(0 << BLINKER_RIGHT_FRONT);
+  leds &= ~(1 << BLINKER_LEFT);
+  leds |= (blinkerOn << BLINKER_LEFT);
 }
 
 void blinkerToggleRight()
 {
-  leds ^= (1 << BLINKER_RIGHT_BACK);
-  leds ^= (1 << BLINKER_RIGHT_FRONT);
-
-  leds &= ~(0 << BLINKER_LEFT_BACK);
-  leds &= ~(0 << BLINKER_LEFT_FRONT);
+  leds &= ~(1 << BLINKER_RIGHT);
+  leds |= (blinkerOn << BLINKER_RIGHT);
 }
 
-void blinkerToggleHazard()
-{
-  leds ^= (1 << BLINKER_LEFT_BACK);
-  leds ^= (1 << BLINKER_LEFT_FRONT);
-  leds ^= (1 << BLINKER_RIGHT_BACK);
-  leds ^= (1 << BLINKER_RIGHT_FRONT);
-}
+// void handleUserInput()
+// {
+//   if (digitalRead(MODE_BACK_PIN) == LOW)
+//   {
+//     currentMode--;
+//   }
+//   if (digitalRead(MODE_FORWARD_PIN) == LOW)
+//   {
+//     currentMode++;
+//   }
+// }
 
 void setup()
 {
-  pinMode(latchPin, OUTPUT);
-  pinMode(dataPin, OUTPUT);
-  pinMode(clockPin, OUTPUT);
+  pinMode(MODE_BACK_PIN, INPUT_PULLUP);
+  pinMode(MODE_FORWARD_PIN, INPUT_PULLUP);
+  pinMode(LATCH_PIN, OUTPUT);
+  pinMode(DATA_PIN, OUTPUT);
+  pinMode(CLOCK_PIN, OUTPUT);
 }
 
 void loop()
 {
-  switch (blinkerScript[blinkerScriptIndex])
+  unsigned long currentMillis = millis();
+
+  if (blinkerMode == HAZARD)
   {
-  case OFF:
-    blinkerOff();
-    break;
-  case LEFT:
-    blinkerToggleLeft();
-    break;
-  case RIGHT:
-    blinkerToggleRight();
-    break;
-  case HAZARD:
-    blinkerToggleHazard();
-    break;
+    if (currentMillis - blinkerPreviousMillis >= BLINK_INTERVAL)
+    {
+      blinkerPreviousMillis = currentMillis;
+      blinkerOn = !blinkerOn;
+    }
+  }
+  else
+  {
+    blinkerOn = false;
   }
 
+  blinkerToggleLeft();
+  blinkerToggleRight();
+
   updateShiftRegister();
-  updateBlinkerScriptIndex();
-  delay(tDelay);
 }
